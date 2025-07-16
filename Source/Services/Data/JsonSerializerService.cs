@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace MQTTnetApp.Services.Data;
+namespace mqttMultimeter.Services.Data;
 
 public sealed class JsonSerializerService
 {
@@ -29,7 +29,12 @@ public sealed class JsonSerializerService
         return JsonSerializer.Serialize(jsonNode, _serializationOptions);
     }
 
-    public string Serialize(object? graph)
+    public JsonNode? SerializeToNode(object? graph)
+    {
+        return JsonSerializer.SerializeToNode(graph, _serializationOptions);
+    }
+
+    public string SerializeToString(object? graph)
     {
         return JsonSerializer.Serialize(graph, _serializationOptions);
     }

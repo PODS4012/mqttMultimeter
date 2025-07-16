@@ -4,25 +4,16 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using MQTTnetApp.Services.Data;
+using mqttMultimeter.Services.Data;
 
-namespace MQTTnetApp.Services.State;
+namespace mqttMultimeter.Services.State;
 
-public sealed class StateService
+public sealed class StateService(JsonSerializerService jsonSerializerService)
 {
-    readonly JsonSerializerService _jsonSerializerService;
-    readonly ILogger<StateService> _logger;
-
+    readonly JsonSerializerService _jsonSerializerService = jsonSerializerService ?? throw new ArgumentNullException(nameof(jsonSerializerService));
     readonly Dictionary<string, JsonNode?> _state = new();
 
     bool _isLoaded;
-
-    public StateService(JsonSerializerService jsonSerializerService, ILogger<StateService> logger)
-    {
-        _jsonSerializerService = jsonSerializerService ?? throw new ArgumentNullException(nameof(jsonSerializerService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
 
     public event EventHandler<SavingStateEventArgs>? Saving;
 
@@ -33,7 +24,7 @@ public sealed class StateService
             throw new InvalidOperationException("The storage is not loaded.");
         }
 
-        _state[key] = JsonNode.Parse(_jsonSerializerService.Serialize(data));
+        _state[key] = _jsonSerializerService.SerializeToNode(data);
     }
 
     public bool TryGet<TData>(string key, out TData? data)
@@ -62,7 +53,6 @@ public sealed class StateService
         }
         catch (Exception exception)
         {
-            // TODO: Use proper logging framework.
             Debug.WriteLine(exception);
         }
 
@@ -78,21 +68,57 @@ public sealed class StateService
         foreach (var state in _state)
         {
             var path = Path.Combine(GeneratePath(), state.Key + ".json");
-            _logger.LogInformation($"Writing state to '{path}'");
+            Debug.WriteLine("Writing state to \'{Path}\'", path);
 
-            var json = _jsonSerializerService.Serialize(state.Value);
+            var json = _jsonSerializerService.SerializeToString(state.Value);
             await File.WriteAllTextAsync(path, json).ConfigureAwait(false);
         }
     }
 
     static string GeneratePath()
     {
-        var path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        path = Path.Combine(path, ".MQTTnetApp", "State");
+        string path;
 
+        // This will work for Linux and macOS.
+        if (Environment.OSVersion.Platform == PlatformID.Unix)
+        {
+            path = GeneratePathForLinux();
+        }
+        else
+        {
+            path = GeneratePathForWindows();
+        }
+
+        Migrate(path);
+
+        path = Path.Combine(path, "State");
         Directory.CreateDirectory(path);
 
         return path;
+    }
+
+    static string GeneratePathForLinux()
+    {
+        // We follow the XDG Base Directory Specification https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+        var path = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        if (string.IsNullOrEmpty(path))
+        {
+            // From spec: If $XDG_CONFIG_HOME is either not set or empty, a default equal to $HOME/.config should be used.
+            path = Environment.GetEnvironmentVariable("HOME");
+            if (string.IsNullOrEmpty(path))
+            {
+                path = "~";
+            }
+
+            path = Path.Combine(path, ".config");
+        }
+
+        return Path.Combine(path, "mqtt-multimeter");
+    }
+
+    static string GeneratePathForWindows()
+    {
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "mqtt-multimeter");
     }
 
     void Load()
@@ -107,7 +133,7 @@ public sealed class StateService
                 var json = File.ReadAllText(stateFile);
                 var key = Path.GetFileNameWithoutExtension(stateFile);
 
-                _state[key] = _jsonSerializerService.Deserialize<JsonValue>(json);
+                _state[key] = _jsonSerializerService.Deserialize<JsonNode>(json);
             }
         }
         catch (FileNotFoundException)
@@ -116,5 +142,32 @@ public sealed class StateService
         }
 
         _isLoaded = true;
+    }
+
+    static void Migrate(string destinationPath)
+    {
+        try
+        {
+            // The first version of the app was named "MQTTnetApp". That is the reason for the different name.
+            var legacyPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".MQTTnetApp");
+
+            if (!Directory.Exists(legacyPath))
+            {
+                // There is nothing to migrate...
+                return;
+            }
+
+            if (Directory.Exists(destinationPath))
+            {
+                // If the new directory exist we create a backup of the data so that the user can manually restore the data.
+                Directory.Move(destinationPath, destinationPath + "-backup-" + Guid.NewGuid());
+            }
+
+            Directory.Move(legacyPath, destinationPath);
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine(exception);
+        }
     }
 }

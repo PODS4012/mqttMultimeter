@@ -5,7 +5,7 @@ using Avalonia.Data;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 
-namespace MQTTnetApp.Controls;
+namespace mqttMultimeter.Controls;
 
 public sealed class AutoGrid : Grid
 {
@@ -24,7 +24,7 @@ public sealed class AutoGrid : Grid
         element.SetValue(IsNextRowProperty, value);
     }
 
-    protected override void ChildrenChanged(object sender, NotifyCollectionChangedEventArgs e)
+    protected override void ChildrenChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         base.ChildrenChanged(sender, e);
 

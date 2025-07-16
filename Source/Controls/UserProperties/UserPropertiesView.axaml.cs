@@ -1,9 +1,9 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace MQTTnetApp.Controls;
+namespace mqttMultimeter.Controls;
 
-public sealed class UserPropertiesView : UserControl
+public sealed partial class UserPropertiesView : UserControl
 {
     public UserPropertiesView()
     {

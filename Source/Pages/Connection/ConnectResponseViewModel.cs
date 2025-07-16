@@ -1,9 +1,9 @@
-using MQTTnet.Client;
-using MQTTnetApp.Common;
-using MQTTnetApp.Controls;
+using mqttMultimeter.Common;
+using mqttMultimeter.Controls;
+using MQTTnet;
 using ReactiveUI;
 
-namespace MQTTnetApp.Pages.Connection;
+namespace mqttMultimeter.Pages.Connection;
 
 public sealed class ConnectResponseViewModel : BaseViewModel
 {

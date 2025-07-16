@@ -6,9 +6,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
-namespace MQTTnetApp.Pages.Info;
+namespace mqttMultimeter.Pages.Info;
 
-public sealed class InfoPageView : UserControl
+public sealed partial class InfoPageView : UserControl
 {
     public InfoPageView()
     {
@@ -19,7 +19,7 @@ public sealed class InfoPageView : UserControl
     {
         AvaloniaXamlLoader.Load(this);
 
-        var licenses = this.FindControl<TextBlock>("Licenses");
+        var licenses = this.FindControl<TextBlock>("Licenses")!;
         licenses.Text = ReadEmbeddedMarkdown();
     }
 
@@ -34,22 +34,22 @@ public sealed class InfoPageView : UserControl
 
     void OnLatestVersionClicked(object? sender, PointerPressedEventArgs e)
     {
-        Launch("https://github.com/chkr1011/MQTTnetApp/releases");
+        ((InfoPageViewModel)DataContext!).OpenReleasesUrl();
     }
 
     void OnOpenHomepage(object? sender, RoutedEventArgs e)
     {
-        Launch("https://github.com/chkr1011/MQTTnetApp");
+        Launch("https://github.com/chkr1011/mqttMultimeter");
     }
 
     void OnReportBug(object? sender, RoutedEventArgs e)
     {
-        Launch("https://github.com/chkr1011/MQTTnetApp/issues/new");
+        Launch("https://github.com/chkr1011/mqttMultimeter/issues/new");
     }
 
     void OnRequestFeature(object? sender, RoutedEventArgs e)
     {
-        Launch("https://github.com/chkr1011/MQTTnetApp/issues/new");
+        Launch("https://github.com/chkr1011/mqttMultimeter/issues/new");
     }
 
     void OpenUrlFromButtonContent(object? sender, RoutedEventArgs e)
@@ -60,7 +60,7 @@ public sealed class InfoPageView : UserControl
     static string ReadEmbeddedMarkdown()
     {
         var assembly = Assembly.GetExecutingAssembly();
-        using var stream = assembly.GetManifestResourceStream("MQTTnetApp.Pages.Info.Readme.md");
+        using var stream = assembly.GetManifestResourceStream("mqttMultimeter.Pages.Info.Readme.md");
 
         if (stream == null)
         {

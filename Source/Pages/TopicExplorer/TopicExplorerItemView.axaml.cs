@@ -1,9 +1,9 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace MQTTnetApp.Pages.TopicExplorer;
+namespace mqttMultimeter.Pages.TopicExplorer;
 
-public class TopicExplorerItemView : UserControl
+public partial class TopicExplorerItemView : UserControl
 {
     public TopicExplorerItemView()
     {

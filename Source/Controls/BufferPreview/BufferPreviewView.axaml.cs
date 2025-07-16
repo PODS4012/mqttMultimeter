@@ -6,23 +6,23 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Threading;
 using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
-using AvaloniaEdit.TextMate.Grammars;
 using MessagePack;
-using MQTTnetApp.Extensions;
-using MQTTnetApp.Main;
-using MQTTnetApp.Services.Data;
-using MQTTnetApp.Text;
+using mqttMultimeter.Extensions;
+using mqttMultimeter.Services.Data;
+using mqttMultimeter.Text;
+using TextMateSharp.Grammars;
 
-namespace MQTTnetApp.Controls;
+namespace mqttMultimeter.Controls;
 
 public sealed class BufferInspectorView : TemplatedControl
 {
@@ -39,13 +39,18 @@ public sealed class BufferInspectorView : TemplatedControl
 
     public static readonly StyledProperty<bool> ShowRawProperty = AvaloniaProperty.Register<BufferInspectorView, bool>(nameof(ShowRaw));
 
+    public static readonly StyledProperty<bool> ShowTextProperty = AvaloniaProperty.Register<BufferInspectorView, bool>(nameof(ShowText));
+
+    public static readonly StyledProperty<bool> ShowPictureProperty = AvaloniaProperty.Register<BufferInspectorView, bool>(nameof(ShowPicture));
+
+    public static readonly StyledProperty<bool> UseBase64PreDecodingProperty = AvaloniaProperty.Register<BufferInspectorView, bool>(nameof(UseBase64PreDecoding));
+
     public static readonly StyledProperty<string?> SelectedFormatNameProperty = AvaloniaProperty.Register<BufferInspectorView, string?>(nameof(SelectedFormatName), "UTF-8");
 
     readonly RegistryOptions _textEditorRegistryOptions = new(ThemeName.Dark);
-
-    string _content = string.Empty;
     Button? _copyToClipboardButton;
-    string? _currentTextEditorLanguage;
+    HexBox? _hexBox;
+    Viewbox? _pictureBox;
     Button? _saveToFileButton;
     TextEditor? _textEditor;
     TextMate.Installation? _textMateInstallation;
@@ -81,8 +86,8 @@ public sealed class BufferInspectorView : TemplatedControl
         set => SetValue(SelectedFormatNameProperty, value);
     }
 
-    static ObservableCollection<BufferConverter> SharedConverters { get; } = new()
-    {
+    static ObservableCollection<BufferConverter> SharedConverters { get; } =
+    [
         new BufferConverter("ASCII", null, b => Encoding.ASCII.GetString(b)),
         new BufferConverter("Base64", null, Convert.ToBase64String),
         new BufferConverter("Binary", null, BinaryEncoder.GetString),
@@ -95,6 +100,7 @@ public sealed class BufferInspectorView : TemplatedControl
                 return JsonSerializer.Serialize(JsonNode.Parse(json), JsonSerializerOptions);
             }),
 
+
         new BufferConverter("MessagePack as JSON",
             "source.json.comments",
             b =>
@@ -103,7 +109,17 @@ public sealed class BufferInspectorView : TemplatedControl
                 return JsonSerializerService.Instance?.Format(json) ?? string.Empty;
             }),
 
+        new BufferConverter("Picture", null, _ => "PICTURE"), // Special case!
         new BufferConverter("RAW", null, _ => "RAW"), // Special case!
+
+        new BufferConverter("Sparkplug B",
+            "source.json.comments",
+            b =>
+            {
+                var payload = Org.Eclipse.Tahu.Protobuf.Payload.Parser.ParseFrom(b);
+                return JsonSerializer.Serialize(payload, JsonSerializerOptions);
+            }),
+
         new BufferConverter("Unicode", null, b => Encoding.Unicode.GetString(b)),
         new BufferConverter("UTF-8", null, b => Encoding.UTF8.GetString(b)),
         new BufferConverter("UTF-32", null, b => Encoding.UTF32.GetString(b)),
@@ -114,7 +130,13 @@ public sealed class BufferInspectorView : TemplatedControl
                 var xml = Encoding.UTF8.GetString(b);
                 return XDocument.Parse(xml).ToString(SaveOptions.None);
             })
-    };
+    ];
+
+    public bool ShowPicture
+    {
+        get => GetValue(ShowPictureProperty);
+        set => SetValue(ShowPictureProperty, value);
+    }
 
     public bool ShowRaw
     {
@@ -122,34 +144,66 @@ public sealed class BufferInspectorView : TemplatedControl
         set => SetValue(ShowRawProperty, value);
     }
 
+    public bool ShowText
+    {
+        get => GetValue(ShowTextProperty);
+        set => SetValue(ShowTextProperty, value);
+    }
+
+    public bool UseBase64PreDecoding
+    {
+        get => GetValue(UseBase64PreDecodingProperty);
+        set => SetValue(UseBase64PreDecodingProperty, value);
+    }
+
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         base.OnApplyTemplate(e);
 
+        _hexBox = (HexBox)this.GetTemplateChild("HexBox");
+        _pictureBox = (Viewbox)this.GetTemplateChild("PictureBox");
+
         _textEditor = (TextEditor)this.GetTemplateChild("TextEditor");
         _textMateInstallation = _textEditor.InstallTextMate(_textEditorRegistryOptions);
-        SyncTextEditor();
 
         _copyToClipboardButton = (Button)this.GetTemplateChild("CopyToClipboardButton");
         _copyToClipboardButton.Click += OnCopyToClipboard;
 
         _saveToFileButton = (Button)this.GetTemplateChild("SaveToFileButton");
         _saveToFileButton.Click += OnSaveToFile;
-        ReadBuffer();
+
+        Sync();
     }
 
-    protected override void OnPropertyChanged<T>(AvaloniaPropertyChangedEventArgs<T> change)
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == BufferProperty || change.Property == SelectedFormatProperty)
-        {
-            ReadBuffer();
-        }
-
         if (change.Property == SelectedFormatProperty)
         {
-            ShowRaw = SelectedFormat?.Name == "RAW";
+            if (string.Equals(SelectedFormat?.Name, "RAW"))
+            {
+                ShowRaw = true;
+                ShowText = false;
+                ShowPicture = false;
+            }
+            else if (string.Equals(SelectedFormat?.Name, "Picture"))
+            {
+                ShowPicture = true;
+                ShowText = false;
+                ShowRaw = false;
+            }
+            else
+            {
+                ShowText = true;
+                ShowPicture = false;
+                ShowRaw = false;
+            }
+        }
+
+        if (change.Property == UseBase64PreDecodingProperty || change.Property == SelectedFormatProperty || change.Property == BufferProperty)
+        {
+            Sync();
         }
 
         if (change.Property == SelectedFormatNameProperty)
@@ -160,69 +214,63 @@ public sealed class BufferInspectorView : TemplatedControl
 
     void OnCopyToClipboard(object? sender, RoutedEventArgs e)
     {
-        if (!string.IsNullOrEmpty(_content))
+        if (!string.IsNullOrEmpty(_textEditor!.Text))
         {
-            Application.Current?.Clipboard?.SetTextAsync(_content);
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            _ = clipboard?.SetTextAsync(_textEditor.Text);
         }
     }
 
     void OnSaveToFile(object? sender, RoutedEventArgs e)
     {
-        var saveFileDialog = new SaveFileDialog();
-        saveFileDialog.Filters!.Add(new FileDialogFilter
-        {
-            Name = "Binary files",
-            Extensions = new List<string>
-            {
-                "bin"
-            }
-        });
-
         Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            var fileName = await saveFileDialog.ShowAsync(MainWindow.Instance);
-            if (!string.IsNullOrEmpty(fileName))
-            {
-                await File.WriteAllBytesAsync(fileName, Buffer ?? Array.Empty<byte>(), CancellationToken.None);
-            }
-        });
-    }
-
-    void ReadBuffer()
-    {
-        var format = SelectedFormat;
-        if (format == null)
-        {
-            throw new InvalidOperationException();
-        }
-
-        if ((Buffer?.Length ?? 0) == 0)
-        {
-            _content = string.Empty;
-        }
-        else
         {
             try
             {
-                _content = format.Convert(Buffer!);
+                var filePickerOptions = new FilePickerSaveOptions
+                {
+                    FileTypeChoices = new List<FilePickerFileType>
+                    {
+                        new("Binary files")
+                        {
+                            Patterns = new[]
+                            {
+                                "*.bin"
+                            }
+                        }
+                    }
+                };
+
+                var file = await TopLevel.GetTopLevel(this)!.StorageProvider.SaveFilePickerAsync(filePickerOptions);
+                if (file == null)
+                {
+                    return;
+                }
+
+                await using var stream = await file.OpenWriteAsync();
+                await stream.WriteAsync(Buffer ?? Array.Empty<byte>());
+            }
+            catch (FileNotFoundException)
+            {
+                // Ignore this case!
             }
             catch (Exception exception)
             {
-                _content = $"<{exception.Message}>";
+                App.ShowException(exception);
             }
-        }
-
-        SyncTextEditor();
+        });
     }
 
     void SelectFormat()
     {
         if (string.IsNullOrEmpty(SelectedFormatName))
         {
-            SelectedFormat = Formats.FirstOrDefault();
+            SelectedFormat = Formats.FirstOrDefault(i => i.Name.Equals("UTF-8"));
         }
-
-        SelectedFormat = Formats.FirstOrDefault(f => string.Equals(f.Name, SelectedFormatName));
+        else
+        {
+            SelectedFormat = Formats.FirstOrDefault(f => string.Equals(f.Name, SelectedFormatName));
+        }
 
         if (SelectedFormat == null)
         {
@@ -230,40 +278,73 @@ public sealed class BufferInspectorView : TemplatedControl
         }
     }
 
-    void SyncTextEditor()
+    void Sync()
     {
-        if (_textEditor == null)
+        if (_textEditor == null || _hexBox == null || _pictureBox == null)
         {
             return;
         }
-
-        _textEditor.Text = _content;
 
         if (SelectedFormat == null)
         {
             return;
         }
 
-        if (_textMateInstallation == null)
+        var buffer = Buffer ?? Array.Empty<byte>();
+        if (UseBase64PreDecoding)
         {
-            return;
+            try
+            {
+                buffer = Convert.FromBase64String(Encoding.ASCII.GetString(buffer));
+            }
+            catch
+            {
+                // Go ahead if decoding did not work. It is probably not required.
+            }
         }
 
-        // Avoid updating the language all the time even without a change!
-        if (string.Equals(_currentTextEditorLanguage, SelectedFormat.Grammar))
+        if (SelectedFormat.Name == "RAW")
         {
-            return;
+            // Only fill the data of the hex box when it is actually used!
+            _hexBox.Value = buffer;
         }
-
-        _currentTextEditorLanguage = SelectedFormat.Grammar;
-
-        if (SelectedFormat.Grammar == null)
+        else if (SelectedFormat.Name == "Picture")
         {
-            _textMateInstallation.SetGrammar(_currentTextEditorLanguage);
+            try
+            {
+                if (_pictureBox.Child is Image existingImage)
+                {
+                    ((Bitmap)existingImage.Source!).Dispose();
+                }
+
+                _pictureBox.Child = new Image
+                {
+                    Source = new Bitmap(new MemoryStream(buffer))
+                };
+            }
+            catch
+            {
+                // Ignore. We may can set a picture here indicating that the format is not supported.
+                _pictureBox.Child = null;
+            }
         }
         else
         {
-            _textMateInstallation.SetGrammar(_textEditorRegistryOptions.GetScopeByLanguageId(_currentTextEditorLanguage));
+            string text;
+            try
+            {
+                text = SelectedFormat.Convert(buffer);
+            }
+            catch (Exception exception)
+            {
+                text = exception.ToString();
+            }
+
+            _textMateInstallation?.SetGrammar(SelectedFormat.Grammar);
+
+            // It is important to set the content after the grammar so that
+            // the highlighting gets applied properly!
+            _textEditor.Text = text;
         }
     }
 }

@@ -1,17 +1,17 @@
 ﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:inflight="clr-namespace:MQTTnetApp.Pages.Inflight"
-             xmlns:controls="clr-namespace:MQTTnetApp.Controls"
-             mc:Ignorable="d"
-             d:DesignWidth="800"
-             d:DataContext="{d:DesignInstance inflight:InflightPageViewModel}"
-             d:DesignHeight="450"
-             x:Class="MQTTnetApp.Pages.Inflight.InflightPageView">
+             xmlns:inflight="clr-namespace:mqttMultimeter.Pages.Inflight"
+             xmlns:controls="clr-namespace:mqttMultimeter.Controls"
+             Design.Width="800"
+             Design.Height="450"
+             x:Class="mqttMultimeter.Pages.Inflight.InflightPageView"
+             x:DataType="inflight:InflightPageViewModel">
+    <Design.DataContext>
+        <inflight:InflightPageViewModel />
+    </Design.DataContext>
 
-    <controls:Overlay IsOverlayVisible="{Binding Path=OverlayContent, Converter={x:Static ObjectConverters.IsNotNull}}"
-                      OverlayContent="{Binding OverlayContent}">
+    <controls:Overlay IsOverlayVisible="{CompiledBinding Path=OverlayContent, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      OverlayContent="{CompiledBinding OverlayContent}">
 
         <Grid RowDefinitions="Auto,*">
 
@@ -21,15 +21,15 @@
 
                 <!-- The Enable/Disable button. -->
                 <ToggleButton Classes="tool_bar_button"
-                              IsChecked="{Binding IsRecordingEnabled}"
-                              ToolTip.Tip="Enable/Disable recording">
+                              IsChecked="{CompiledBinding IsRecordingEnabled}"
+                              ToolTip.Tip="Enable or disable recording">
                     <PathIcon Data="{StaticResource record_regular}" />
                 </ToggleButton>
 
                 <!-- The clear items button. -->
                 <Button Classes="tool_bar_button"
                         ToolTip.Tip="Remove all items"
-                        Command="{Binding ClearItems}">
+                        Command="{CompiledBinding ClearItems, Mode=OneTime}">
                     <PathIcon Data="{StaticResource delete_regular}" />
                 </Button>
 
@@ -37,14 +37,14 @@
 
                 <!-- The export/import buttons. -->
                 <Button Classes="tool_bar_button"
-                        ToolTip.Tip="Export all items to a file."
-                        Command="{Binding ExportItems}">
+                        ToolTip.Tip="Export all items to a file"
+                        Click="OnExportItems">
                     <PathIcon Data="{StaticResource save_regular}" />
                 </Button>
 
                 <Button Classes="tool_bar_button"
-                        ToolTip.Tip="Import all items from a file."
-                        Command="{Binding ImportItems}">
+                        ToolTip.Tip="Import all items from a file"
+                        Click="OnImportItems">
                     <PathIcon Data="{StaticResource folder_open_regular}" />
                 </Button>
 
@@ -54,7 +54,7 @@
                 <TextBox Width="200"
                          Classes="tool_bar_text_box"
                          Watermark="Topic filter"
-                         Text="{Binding Path=FilterText, Mode=TwoWay}" />
+                         Text="{CompiledBinding Path=FilterText}" />
             </StackPanel>
 
             <Grid Grid.Row="1"
@@ -63,47 +63,45 @@
                 <!-- The data grid with items -->
                 <DataGrid Grid.Column="0"
                           Background="#262626"
-                          SelectedItem="{Binding SelectedItem}"
-                          Items="{Binding Items}">
+                          x:Name="PART_Items"
+                          ItemsSource="{CompiledBinding Items, Mode=OneTime}">
                     <DataGrid.Columns>
                         <!-- The number column -->
                         <DataGridTemplateColumn Header="#"
-                                                d:DataContext="{d:DesignInstance inflight:InflightPageItemViewModel}"
                                                 Width="Auto">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Margin="5,0"
                                                HorizontalAlignment="Right"
                                                Classes="code_text"
-                                               Text="{Binding Number}" />
+                                               Text="{CompiledBinding Number}" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
                         <!-- The topic column -->
                         <DataGridTemplateColumn Header="Topic"
-                                                d:DataContext="{d:DesignInstance inflight:InflightPageItemViewModel}"
                                                 Width="*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Margin="5,0"
                                                Classes="code_text"
-                                               Text="{Binding Topic}" />
+                                               Text="{CompiledBinding Topic}" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
                         <!-- The flags column -->
                         <DataGridTemplateColumn Header="Flags"
-                                                d:DataContext="{d:DesignInstance inflight:InflightPageItemViewModel}"
                                                 Width="Auto">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal"
                                                 HorizontalAlignment="Right"
                                                 Margin="5,0">
-                                        <Border IsVisible="{Binding Retain}"
-                                                Classes="badge badge_retain">
+                                        <Border IsVisible="{CompiledBinding Retain}"
+                                                Classes="badge badge_retain"
+                                                Margin="0,3">
                                             <TextBlock />
                                         </Border>
                                     </StackPanel>
@@ -113,14 +111,13 @@
 
                         <!-- The size column -->
                         <DataGridTemplateColumn Header="Size"
-                                                d:DataContext="{d:DesignInstance inflight:InflightPageItemViewModel}"
                                                 Width="Auto">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Margin="5,0,10,0"
                                                HorizontalAlignment="Right"
                                                Classes="code_text"
-                                               Text="{Binding Length, StringFormat={}{0} bytes}" />
+                                               Text="{CompiledBinding Length, StringFormat={}{0} bytes}" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
@@ -128,7 +125,8 @@
                 </DataGrid>
 
                 <!-- The splitter -->
-                <GridSplitter Grid.Column="1" Width="2" />
+                <GridSplitter Grid.Column="1"
+                              Width="2" />
 
                 <!-- The details of the selected item -->
                 <Grid Grid.Column="2"
@@ -141,8 +139,15 @@
                                Content="Selected message" />
                     </Border>
 
-                    <inflight:InflightPageItemView Grid.Row="1"
-                                                   DataContext="{Binding SelectedItem}" />
+                    <ContentPresenter Grid.Row="1"
+                                      Content="{Binding ElementName=PART_Items, Path=SelectedItem}">
+                        <!-- It seems we need the data template here even if it works without such a template in other areas!? -->
+                        <ContentPresenter.ContentTemplate>
+                            <DataTemplate DataType="{x:Type inflight:InflightPageItemViewModel}">
+                                <inflight:InflightPageItemView />
+                            </DataTemplate>
+                        </ContentPresenter.ContentTemplate>
+                    </ContentPresenter>
 
                 </Grid>
             </Grid>

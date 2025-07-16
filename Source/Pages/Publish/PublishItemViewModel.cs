@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Threading.Tasks;
-using MQTTnetApp.Common;
-using MQTTnetApp.Controls;
+using mqttMultimeter.Common;
+using mqttMultimeter.Controls;
 using ReactiveUI;
 
-namespace MQTTnetApp.Pages.Publish;
+namespace mqttMultimeter.Pages.Publish;
 
 public sealed class PublishItemViewModel : BaseViewModel
 {
@@ -12,6 +12,7 @@ public sealed class PublishItemViewModel : BaseViewModel
     uint _messageExpiryInterval;
     string _name = string.Empty;
     string _payload = string.Empty;
+    BufferFormat _payloadFormat;
     string? _responseTopic;
     bool _retain;
     uint _subscriptionIdentifier;
@@ -52,7 +53,11 @@ public sealed class PublishItemViewModel : BaseViewModel
         set => this.RaiseAndSetIfChanged(ref _payload, value);
     }
 
-    public BufferFormat PayloadFormat { get; set; }
+    public BufferFormat PayloadFormat
+    {
+        get => _payloadFormat;
+        set => this.RaiseAndSetIfChanged(ref _payloadFormat, value);
+    }
 
     public PayloadFormatIndicatorSelectorViewModel PayloadFormatIndicator { get; } = new();
 

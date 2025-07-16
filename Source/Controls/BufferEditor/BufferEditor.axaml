@@ -1,7 +1,7 @@
 ﻿<Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="clr-namespace:MQTTnetApp.Controls"
-        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit">
+        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
+        xmlns:controls="clr-namespace:mqttMultimeter.Controls">
     <Design.PreviewWith>
         <controls:BufferEditor Width="800"
                                Buffer="{x:Static controls:BufferPreviewTestData.PayloadString}"
@@ -23,20 +23,12 @@
             <ControlTemplate TargetType="{x:Type controls:BufferEditor}">
                 <Border BorderThickness="{DynamicResource TextControlBorderThemeThickness}"
                         Background="{DynamicResource TextControlBackground}">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
+                    <Grid RowDefinitions="Auto,*">
 
                         <!-- The tool bar. -->
                         <Grid Grid.Row="0"
-                              Classes="tool_bar">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                              Classes="tool_bar"
+                              ColumnDefinitions="Auto,*,Auto">
 
                             <!-- The buttons -->
                             <StackPanel Orientation="Horizontal">
@@ -47,14 +39,28 @@
                                     <PathIcon Data="{StaticResource text_wrap_regular}"
                                               ToolTip.Tip="Toggle word wrap" />
                                 </ToggleButton>
-
-                                <Separator Classes="tool_bar_separator" />
-
+                                
+                                <!-- The Reformat button -->
+                                <Button Classes="tool_bar_button"
+                                        x:Name="ReformatButton">
+                                    <PathIcon Data="{StaticResource code_regular}"
+                                              ToolTip.Tip="Reformat" />
+                                </Button>
+                                
                                 <!-- The Copy button -->
                                 <Button Classes="tool_bar_button"
                                         x:Name="CopyToClipboardButton">
                                     <PathIcon Data="{StaticResource copy_regular}"
                                               ToolTip.Tip="Copy to clipboard" />
+                                </Button>
+
+                                <Separator Classes="tool_bar_separator" />
+                                
+                                <!-- The open button -->
+                                <Button Classes="tool_bar_button"
+                                        x:Name="LoadFromFileButton"
+                                        ToolTip.Tip="Load from file">
+                                    <PathIcon Data="{StaticResource folder_open_regular}" />
                                 </Button>
 
                                 <!-- The Save button -->
@@ -64,21 +70,22 @@
                                               ToolTip.Tip="Save to file" />
                                 </Button>
 
-                                <!-- The open button -->
-                                <Button Classes="tool_bar_button"
-                                        x:Name="LoadFromFileButton"
-                                        ToolTip.Tip="Load from file">
-                                    <PathIcon Data="{StaticResource folder_open_regular}" />
-                                </Button>
-
                                 <Separator Classes="tool_bar_separator" />
 
-                                <!-- The Reformat button -->
+                                <!-- The zoom in button -->
                                 <Button Classes="tool_bar_button"
-                                        x:Name="ReformatButton">
-                                    <PathIcon Data="{StaticResource code_regular}"
-                                              ToolTip.Tip="Reformat" />
+                                        x:Name="IncreaseFontSizeButton">
+                                    <PathIcon Data="{StaticResource zoom_in_regular}"
+                                              ToolTip.Tip="Increase font size" />
                                 </Button>
+                                
+                                <!-- The zoom out button -->
+                                <Button Classes="tool_bar_button"
+                                        x:Name="DecreaseFontSizeButton">
+                                    <PathIcon Data="{StaticResource zoom_out_regular}"
+                                              ToolTip.Tip="Decrease font size" />
+                                </Button>
+                                
                             </StackPanel>
 
                             <!-- The format -->
@@ -96,30 +103,30 @@
                                        Margin="0,0,10,0" />
 
                                 <RadioButton GroupName="PayloadType"
-                                             IsChecked="{Binding Path=IsText, RelativeSource={RelativeSource AncestorType={x:Type controls:BufferEditor}}}"
+                                             IsChecked="{CompiledBinding Path=IsText, RelativeSource={RelativeSource TemplatedParent}}"
                                              Content="Text" />
 
                                 <RadioButton GroupName="PayloadType"
-                                             IsChecked="{Binding Path=IsJson, RelativeSource={RelativeSource AncestorType={x:Type controls:BufferEditor}}}"
+                                             IsChecked="{CompiledBinding Path=IsJson, RelativeSource={RelativeSource TemplatedParent}}"
                                              Content="JSON" />
 
                                 <RadioButton GroupName="PayloadType"
-                                             IsChecked="{Binding Path=IsXml, RelativeSource={RelativeSource AncestorType={x:Type controls:BufferEditor}}}"
+                                             IsChecked="{CompiledBinding Path=IsXml, RelativeSource={RelativeSource TemplatedParent}}"
                                              Content="XML" />
 
                                 <RadioButton GroupName="PayloadType"
-                                             IsChecked="{Binding Path=IsBase64, RelativeSource={RelativeSource AncestorType={x:Type controls:BufferEditor}}}"
+                                             IsChecked="{CompiledBinding Path=IsBase64, RelativeSource={RelativeSource TemplatedParent}}"
                                              Content="Base64" />
 
                                 <RadioButton GroupName="PayloadType"
-                                             IsChecked="{Binding Path=IsPath, RelativeSource={RelativeSource AncestorType={x:Type controls:BufferEditor}}}"
+                                             IsChecked="{CompiledBinding Path=IsPath, RelativeSource={RelativeSource TemplatedParent}}"
                                              Content="Path" />
                             </StackPanel>
                         </Grid>
 
                         <avaloniaEdit:TextEditor Grid.Row="1"
                                                  x:Name="TextEditor"
-                                                 WordWrap="{Binding ElementName=TextWrappingCheckBox, Path=IsChecked}"
+                                                 WordWrap="{CompiledBinding ElementName=TextWrappingCheckBox, Path=IsChecked}"
                                                  Background="Transparent"
                                                  Margin="5"
                                                  Classes="code_text"

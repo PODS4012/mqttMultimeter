@@ -2,9 +2,9 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace MQTTnetApp.Main;
+namespace mqttMultimeter.Main;
 
-public class MainWindow : Window
+public partial class MainWindow : Window
 {
     public MainWindow()
     {

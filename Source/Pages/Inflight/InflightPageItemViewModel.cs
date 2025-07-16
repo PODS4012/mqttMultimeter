@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
+using mqttMultimeter.Controls;
 using MQTTnet;
 using MQTTnet.Protocol;
-using MQTTnetApp.Controls;
 
-namespace MQTTnetApp.Pages.Inflight;
+namespace mqttMultimeter.Pages.Inflight;
 
 public sealed class InflightPageItemViewModel
 {
@@ -12,6 +13,16 @@ public sealed class InflightPageItemViewModel
     {
         Message = message ?? throw new ArgumentNullException(nameof(message));
 
+        if (message.Payload.Length > 0)
+        {
+            Payload = message.Payload.ToArray();
+        }
+        else
+        {
+            Payload = [];
+        }
+
+        Length = Payload.Length;
         UserProperties.IsReadOnly = true;
     }
 
@@ -25,7 +36,7 @@ public sealed class InflightPageItemViewModel
 
     public bool Dup => Message.Dup;
 
-    public long Length => Payload.Length;
+    public long Length { get; }
 
     public MqttApplicationMessage Message { get; }
 
@@ -33,10 +44,10 @@ public sealed class InflightPageItemViewModel
 
     public long Number { get; init; }
 
-    public byte[] Payload => Message.Payload ?? Array.Empty<byte>();
+    public byte[] Payload { get; }
 
     public MqttPayloadFormatIndicator PayloadFormatIndicator => Message.PayloadFormatIndicator;
-    
+
     public MqttQualityOfServiceLevel QualityOfServiceLevel => Message.QualityOfServiceLevel;
 
     public string ResponseTopic => Message.ResponseTopic;

@@ -4,9 +4,9 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
-namespace MQTTnetApp.Controls;
+namespace mqttMultimeter.Controls;
 
-public sealed class ErrorBox : UserControl
+public sealed partial class ErrorBox : UserControl
 {
     public static readonly StyledProperty<string> MessageProperty = AvaloniaProperty.Register<ErrorBox, string>(nameof(Message));
 
@@ -35,6 +35,6 @@ public sealed class ErrorBox : UserControl
 
     void OnButtonCopyClicked(object? sender, RoutedEventArgs e)
     {
-        _ = Application.Current?.Clipboard?.SetTextAsync(Message);
+        //_ = Application.Current?.Clipboard?.SetTextAsync(Message);
     }
 }

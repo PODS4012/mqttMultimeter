@@ -1,11 +1,13 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
+using System.Threading.Tasks;
 using Avalonia.Threading;
-using MQTTnet.Diagnostics;
-using MQTTnetApp.Common;
-using MQTTnetApp.Services.Mqtt;
+using mqttMultimeter.Common;
+using mqttMultimeter.Services.Mqtt;
+using MQTTnet.Diagnostics.PacketInspection;
 using ReactiveUI;
 
-namespace MQTTnetApp.Pages.PacketInspector;
+namespace mqttMultimeter.Pages.PacketInspector;
 
 public sealed class PacketInspectorPageViewModel : BasePageViewModel
 {
@@ -15,6 +17,11 @@ public sealed class PacketInspectorPageViewModel : BasePageViewModel
 
     public PacketInspectorPageViewModel(MqttClientService mqttClientService)
     {
+        if (mqttClientService == null)
+        {
+            throw new ArgumentNullException(nameof(mqttClientService));
+        }
+
         mqttClientService.RegisterMessageInspectorHandler(ProcessPacket);
     }
 
@@ -79,25 +86,25 @@ public sealed class PacketInspectorPageViewModel : BasePageViewModel
         }
     }
 
-    void ProcessPacket(InspectMqttPacketEventArgs eventArgs)
+    Task ProcessPacket(InspectMqttPacketEventArgs eventArgs)
     {
         if (!_isRecordingEnabled)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        var number = _number++;
-        var viewModel = new PacketViewModel
+        Dispatcher.UIThread.Invoke(() =>
         {
-            Number = number,
-            Type = GetControlPacketType(eventArgs.Buffer[0]),
-            Data = eventArgs.Buffer,
-            Length = eventArgs.Buffer.Length,
-            IsInbound = eventArgs.Direction == MqttPacketFlowDirection.Inbound
-        };
+            var number = _number++;
+            var viewModel = new PacketViewModel
+            {
+                Number = number,
+                Type = GetControlPacketType(eventArgs.Buffer[0]),
+                Data = eventArgs.Buffer,
+                Length = eventArgs.Buffer.Length,
+                IsInbound = eventArgs.Direction == MqttPacketFlowDirection.Inbound
+            };
 
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
             Packets.Add(viewModel);
 
             // TODO: Move to configuration.
@@ -106,5 +113,7 @@ public sealed class PacketInspectorPageViewModel : BasePageViewModel
                 Packets.RemoveAt(0);
             }
         });
+
+        return Task.CompletedTask;
     }
 }

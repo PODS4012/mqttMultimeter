@@ -6,11 +6,11 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.VisualTree;
 
-namespace MQTTnetApp.Extensions;
+namespace mqttMultimeter.Extensions;
 
 public static class TemplatedControlExtensions
 {
-    public static StyledElement? FindVisualChild(this IVisual visual, string name)
+    public static StyledElement? FindVisualChild(this Visual visual, string name)
     {
         if (visual == null)
         {
@@ -39,7 +39,7 @@ public static class TemplatedControlExtensions
         return null;
     }
 
-    public static IControl GetTemplateChild(this TemplatedControl templatedControl, string name)
+    public static Control GetTemplateChild(this TemplatedControl templatedControl, string name)
     {
         if (templatedControl == null)
         {

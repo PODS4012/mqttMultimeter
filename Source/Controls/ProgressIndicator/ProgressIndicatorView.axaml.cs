@@ -1,9 +1,9 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace MQTTnetApp.Controls;
+namespace mqttMultimeter.Controls;
 
-public class ProgressIndicatorView : UserControl
+public sealed partial class ProgressIndicatorView : UserControl
 {
     public ProgressIndicatorView()
     {

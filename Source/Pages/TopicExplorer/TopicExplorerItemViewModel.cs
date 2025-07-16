@@ -2,22 +2,23 @@
 using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
+using mqttMultimeter.Common;
+using mqttMultimeter.Pages.Inflight;
 using MQTTnet;
-using MQTTnetApp.Common;
-using MQTTnetApp.Pages.Inflight;
 using ReactiveUI;
 
-namespace MQTTnetApp.Pages.TopicExplorer;
+namespace mqttMultimeter.Pages.TopicExplorer;
 
 public sealed class TopicExplorerItemViewModel : BaseViewModel
 {
     readonly TopicExplorerPageViewModel _ownerPage;
 
-    string? _currentPayload;
-    int _currentPayloadLength;
+    long _currentPayloadLength;
+    string? _currentPayloadPreview;
+    bool _hasPayload;
     DateTime? _lastUpdateTimestamp;
     TopicExplorerItemMessageViewModel? _selectedMessage;
-    int _totalPayloadLength;
+    long _totalPayloadLength;
     bool _trackLatestMessage;
 
     public TopicExplorerItemViewModel(TopicExplorerPageViewModel ownerPage)
@@ -27,23 +28,27 @@ public sealed class TopicExplorerItemViewModel : BaseViewModel
         Messages.CollectionChanged += OnMessagesChanged;
     }
 
-    public string? CurrentPayload
-    {
-        get => _currentPayload;
-        private set
-        {
-            this.RaiseAndSetIfChanged(ref _currentPayload, value);
-            this.RaisePropertyChanged(nameof(HasPayload));
-        }
-    }
-
-    public int CurrentPayloadLength
+    public long CurrentPayloadLength
     {
         get => _currentPayloadLength;
         private set => this.RaiseAndSetIfChanged(ref _currentPayloadLength, value);
     }
 
-    public bool HasPayload => CurrentPayload != null;
+    public string? CurrentPayloadPreview
+    {
+        get => _currentPayloadPreview;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _currentPayloadPreview, value);
+            this.RaisePropertyChanged(nameof(HasPayload));
+        }
+    }
+
+    public bool HasPayload
+    {
+        get => _hasPayload;
+        private set => this.RaiseAndSetIfChanged(ref _hasPayload, value);
+    }
 
     public DateTime? LastUpdateTimestamp
     {
@@ -59,7 +64,7 @@ public sealed class TopicExplorerItemViewModel : BaseViewModel
         set => this.RaiseAndSetIfChanged(ref _selectedMessage, value);
     }
 
-    public int TotalPayloadLength
+    public long TotalPayloadLength
     {
         get => _totalPayloadLength;
         private set => this.RaiseAndSetIfChanged(ref _totalPayloadLength, value);
@@ -84,20 +89,10 @@ public sealed class TopicExplorerItemViewModel : BaseViewModel
             throw new ArgumentNullException(nameof(message));
         }
 
-        string payload;
-        try
-        {
-            payload = Encoding.UTF8.GetString(message.Payload ?? ReadOnlySpan<byte>.Empty);
-        }
-        catch
-        {
-            // Ignore error.
-            payload = string.Empty;
-        }
 
         var timestamp = DateTime.Now;
 
-        TotalPayloadLength += message.Payload?.Length ?? 0;
+        TotalPayloadLength += message.Payload.Length;
         LastUpdateTimestamp = timestamp;
 
         var duration = TimeSpan.Zero;
@@ -107,9 +102,9 @@ public sealed class TopicExplorerItemViewModel : BaseViewModel
             duration = timestamp - lastMessage.Timestamp;
         }
 
-        var viewModel = new TopicExplorerItemMessageViewModel(timestamp, message, payload, duration);
-        viewModel.InflightItem.RepeatMessageRequested += (s, _) => _ownerPage.RepeatMessage((InflightPageItemViewModel)s!);
-        viewModel.InflightItem.DeleteRetainedMessageRequested += (s, _) => _ownerPage.DeleteRetainedMessage((InflightPageItemViewModel)s!);
+        var viewModel = new TopicExplorerItemMessageViewModel(timestamp, message, duration);
+        viewModel.InflightItem.RepeatMessageRequested += OnInflightItemOnRepeatMessageRequested;
+        viewModel.InflightItem.DeleteRetainedMessageRequested += OnInflightItemOnDeleteRetainedMessageRequested;
 
         Messages.Add(viewModel);
 
@@ -128,9 +123,20 @@ public sealed class TopicExplorerItemViewModel : BaseViewModel
         SelectedMessage = null;
     }
 
+    void OnInflightItemOnDeleteRetainedMessageRequested(object? s, EventArgs _)
+    {
+        _ownerPage.DeleteRetainedMessage((InflightPageItemViewModel)s!);
+    }
+
+    void OnInflightItemOnRepeatMessageRequested(object? s, EventArgs _)
+    {
+        _ownerPage.RepeatMessage((InflightPageItemViewModel)s!);
+    }
+
     void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        CurrentPayload = Messages.LastOrDefault()?.Payload ?? string.Empty;
+        CurrentPayloadPreview = Messages.LastOrDefault()?.PayloadPreview ?? string.Empty;
         CurrentPayloadLength = Messages.LastOrDefault()?.PayloadLength ?? 0;
+        HasPayload = CurrentPayloadLength > 0;
     }
 }

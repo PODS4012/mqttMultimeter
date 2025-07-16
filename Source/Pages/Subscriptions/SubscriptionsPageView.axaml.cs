@@ -1,9 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace MQTTnetApp.Pages.Subscriptions;
+namespace mqttMultimeter.Pages.Subscriptions;
 
-public sealed class SubscriptionsPageView : UserControl
+public sealed partial class SubscriptionsPageView : UserControl
 {
     public SubscriptionsPageView()
     {

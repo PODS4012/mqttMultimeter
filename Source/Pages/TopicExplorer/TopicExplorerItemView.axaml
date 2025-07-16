@@ -1,15 +1,16 @@
 ﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:inflight="clr-namespace:MQTTnetApp.Pages.Inflight"
-             xmlns:topicExplorer="clr-namespace:MQTTnetApp.Pages.TopicExplorer"
-             xmlns:converters="clr-namespace:MQTTnetApp.Converters"
-             mc:Ignorable="d"
-             d:DesignWidth="800"
-             d:DataContext="{d:DesignInstance topicExplorer:TopicExplorerItemViewModel}"
-             d:DesignHeight="450"
-             x:Class="MQTTnetApp.Pages.TopicExplorer.TopicExplorerItemView">
+             xmlns:topicExplorer="clr-namespace:mqttMultimeter.Pages.TopicExplorer"
+             xmlns:converters="clr-namespace:mqttMultimeter.Converters"
+             xmlns:inflight="clr-namespace:mqttMultimeter.Pages.Inflight"
+             Design.Width="800"
+             Design.Height="450"
+             x:Class="mqttMultimeter.Pages.TopicExplorer.TopicExplorerItemView"
+             x:DataType="topicExplorer:TopicExplorerItemViewModel">
+    <Design.DataContext>
+        <topicExplorer:TopicExplorerItemViewModel />
+    </Design.DataContext>
+
     <Grid RowDefinitions="Auto,*,1,3*">
 
         <!-- ToolBar -->
@@ -19,32 +20,32 @@
 
             <!-- The Enable/Disable button -->
             <ToggleButton Classes="tool_bar_button"
-                          IsChecked="{Binding TrackLatestMessage}"
+                          IsChecked="{CompiledBinding TrackLatestMessage}"
                           ToolTip.Tip="Track latest message">
                 <PathIcon Data="{StaticResource arrow_next_regular}" />
             </ToggleButton>
 
             <Button ToolTip.Tip="Remove all messages"
                     Classes="tool_bar_button"
-                    Command="{Binding Clear}">
+                    Command="{CompiledBinding Clear, Mode=OneTime}">
                 <PathIcon Data="{StaticResource delete_regular}" />
             </Button>
         </StackPanel>
 
         <!-- Messages -->
         <DataGrid Grid.Row="1"
-                  Items="{Binding Messages}"
-                  SelectedItem="{Binding SelectedMessage, Mode=TwoWay}"
+                  x:Name="PART_Items"
+                  ItemsSource="{CompiledBinding Messages, Mode=OneTime}"
+                  SelectedItem="{CompiledBinding SelectedMessage, Mode=TwoWay}"
                   Margin="0,0,0,10">
             <DataGrid.Columns>
 
                 <!-- Timestamp -->
-                <DataGridTemplateColumn d:DataContext="{d:DesignInstance topicExplorer:TopicExplorerItemMessageViewModel}"
-                                        Header="Timestamp">
+                <DataGridTemplateColumn Header="Timestamp">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate DataType="{x:Type topicExplorer:TopicExplorerItemMessageViewModel}">
                             <TextBlock Margin="10,0"
-                                       Text="{Binding Timestamp, StringFormat={}{0:yyyy-MM-ddTHH:mm:ss.ffff}}"
+                                       Text="{CompiledBinding Timestamp, StringFormat={}{0:yyyy-MM-ddTHH:mm:ss.ffff}}"
                                        Classes="code_text" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -53,27 +54,26 @@
                 <!-- Payload -->
                 <DataGridTemplateColumn Header="Payload"
                                         CellStyleClasses="code_text"
-                                        d:DataContext="{d:DesignInstance topicExplorer:TopicExplorerItemMessageViewModel}"
                                         Width="*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate DataType="{x:Type topicExplorer:TopicExplorerItemMessageViewModel}">
                             <TextBlock Margin="10,0"
-                                       Text="{Binding Payload}"
+                                       Text="{CompiledBinding PayloadPreview}"
                                        Classes="code_text" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
                 <!-- Flags -->
-                <DataGridTemplateColumn d:DataContext="{d:DesignInstance topicExplorer:TopicExplorerItemMessageViewModel}"
-                                        Header="Flags">
+                <DataGridTemplateColumn Header="Flags">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate DataType="{x:Type topicExplorer:TopicExplorerItemMessageViewModel}">
                             <StackPanel Orientation="Horizontal"
                                         HorizontalAlignment="Right"
                                         Margin="5,0">
-                                <Border IsVisible="{Binding Retain}"
-                                        Classes="badge badge_retain">
+                                <Border IsVisible="{CompiledBinding Retain}"
+                                        Classes="badge badge_retain"
+                                        Margin="0,3">
                                     <TextBlock />
                                 </Border>
                             </StackPanel>
@@ -82,12 +82,11 @@
                 </DataGridTemplateColumn>
 
                 <!-- Delay -->
-                <DataGridTemplateColumn d:DataContext="{d:DesignInstance topicExplorer:TopicExplorerItemMessageViewModel}"
-                                        Header="Delay">
+                <DataGridTemplateColumn Header="Delay">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate DataType="{x:Type topicExplorer:TopicExplorerItemMessageViewModel}">
                             <TextBlock Margin="10,0"
-                                       Text="{Binding Delay, Converter={x:Static converters:TimeSpanToLongStringConverter.Instance}}"
+                                       Text="{CompiledBinding Delay, Converter={x:Static converters:TimeSpanToLongStringConverter.Instance}}"
                                        Classes="code_text" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -100,9 +99,14 @@
                       Classes="grid_splitter_vertical" />
 
         <!-- Message details -->
-        <inflight:InflightPageItemView Grid.Row="3"
-                                       DataContext="{Binding SelectedMessage.InflightItem}" />
+        <ContentPresenter Content="{Binding ElementName=PART_Items, Path=SelectedItem.InflightItem}"
+                          Grid.Row="3">
+            <ContentPresenter.ContentTemplate>
+                <DataTemplate DataType="{x:Type inflight:InflightPageItemViewModel}">
+                    <inflight:InflightPageItemView />
+                </DataTemplate>
+            </ContentPresenter.ContentTemplate>
+        </ContentPresenter>
     </Grid>
-
 
 </UserControl>

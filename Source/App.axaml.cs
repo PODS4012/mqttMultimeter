@@ -2,25 +2,26 @@ using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using Microsoft.Extensions.DependencyInjection;
-using MQTTnetApp.Common;
-using MQTTnetApp.Controls;
-using MQTTnetApp.Main;
-using MQTTnetApp.Pages.Connection;
-using MQTTnetApp.Pages.Inflight;
-using MQTTnetApp.Pages.Inflight.Export;
-using MQTTnetApp.Pages.Info;
-using MQTTnetApp.Pages.Log;
-using MQTTnetApp.Pages.PacketInspector;
-using MQTTnetApp.Pages.Publish;
-using MQTTnetApp.Pages.Subscriptions;
-using MQTTnetApp.Pages.TopicExplorer;
-using MQTTnetApp.Services.Data;
-using MQTTnetApp.Services.Mqtt;
-using MQTTnetApp.Services.State;
-using MQTTnetApp.Services.Updates;
+using mqttMultimeter.Common;
+using mqttMultimeter.Controls;
+using mqttMultimeter.Main;
+using mqttMultimeter.Pages.Connection;
+using mqttMultimeter.Pages.Inflight;
+using mqttMultimeter.Pages.Inflight.Export;
+using mqttMultimeter.Pages.Info;
+using mqttMultimeter.Pages.Log;
+using mqttMultimeter.Pages.PacketInspector;
+using mqttMultimeter.Pages.Publish;
+using mqttMultimeter.Pages.Subscriptions;
+using mqttMultimeter.Pages.TopicExplorer;
+using mqttMultimeter.Services.Data;
+using mqttMultimeter.Services.Mqtt;
+using mqttMultimeter.Services.State;
+using mqttMultimeter.Services.Updates;
 
-namespace MQTTnetApp;
+namespace mqttMultimeter;
 
 public sealed class App : Application
 {
@@ -30,7 +31,7 @@ public sealed class App : Application
 
     public App()
     {
-        var serviceProvider = new ServiceCollection().AddLogging()
+        var serviceProvider = new ServiceCollection()
             // Services
             .AddSingleton<MqttClientService>()
             .AddSingleton<AppUpdateService>()
@@ -64,6 +65,8 @@ public sealed class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        Current!.RequestedThemeVariant = ThemeVariant.Dark;
+        
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var mainWindow = new MainWindow

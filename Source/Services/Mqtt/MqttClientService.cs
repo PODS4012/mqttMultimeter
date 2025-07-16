@@ -1,30 +1,33 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Security;
 using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using mqttMultimeter.Controls;
+using mqttMultimeter.Pages.Connection;
+using mqttMultimeter.Pages.Publish;
+using mqttMultimeter.Pages.Subscriptions;
 using MQTTnet;
-using MQTTnet.Client;
-using MQTTnet.Diagnostics;
+using MQTTnet.Diagnostics.Logger;
+using MQTTnet.Diagnostics.PacketInspection;
 using MQTTnet.Exceptions;
 using MQTTnet.Internal;
-using MQTTnetApp.Controls;
-using MQTTnetApp.Pages.Connection;
-using MQTTnetApp.Pages.Publish;
-using MQTTnetApp.Pages.Subscriptions;
 
-namespace MQTTnetApp.Services.Mqtt;
+namespace mqttMultimeter.Services.Mqtt;
 
 public sealed class MqttClientService
 {
     readonly AsyncEvent<MqttApplicationMessageReceivedEventArgs> _applicationMessageReceivedEvent = new();
-    readonly List<Action<InspectMqttPacketEventArgs>> _messageInspectors = new();
+    readonly List<Func<InspectMqttPacketEventArgs, Task>> _messageInspectors = new();
     readonly MqttNetEventLogger _mqttNetEventLogger = new();
 
     IMqttClient? _mqttClient;
+    int _receivedMessagesCount;
 
     public MqttClientService()
     {
@@ -43,6 +46,8 @@ public sealed class MqttClientService
 
     public bool IsConnected => _mqttClient?.IsConnected == true;
 
+    public int ReceivedMessagesCount => _receivedMessagesCount;
+
     public async Task<MqttClientConnectResult> Connect(ConnectionItemViewModel item)
     {
         if (item == null)
@@ -52,11 +57,15 @@ public sealed class MqttClientService
 
         if (_mqttClient != null)
         {
+            _mqttClient.ApplicationMessageReceivedAsync -= OnApplicationMessageReceived;
+            _mqttClient.DisconnectedAsync -= OnDisconnected;
+            _mqttClient.InspectPacketAsync -= OnInspectPacket;
+
             await _mqttClient.DisconnectAsync();
             _mqttClient.Dispose();
         }
 
-        _mqttClient = new MqttFactory(_mqttNetEventLogger).CreateMqttClient();
+        _mqttClient = new MqttClientFactory(_mqttNetEventLogger).CreateMqttClient();
 
         var clientOptionsBuilder = new MqttClientOptionsBuilder().WithTimeout(TimeSpan.FromSeconds(item.ServerOptions.CommunicationTimeout))
             .WithProtocolVersion(item.ServerOptions.SelectedProtocolVersion.Value)
@@ -65,7 +74,8 @@ public sealed class MqttClientService
             .WithCredentials(item.SessionOptions.UserName, item.SessionOptions.Password)
             .WithRequestProblemInformation(item.SessionOptions.RequestProblemInformation)
             .WithRequestResponseInformation(item.SessionOptions.RequestResponseInformation)
-            .WithKeepAlivePeriod(TimeSpan.FromSeconds(item.SessionOptions.KeepAliveInterval));
+            .WithKeepAlivePeriod(TimeSpan.FromSeconds(item.SessionOptions.KeepAliveInterval))
+            .WithoutPacketFragmentation(); // We do not need this optimization is this type of client. It will also increase compatibility.
 
         if (item.SessionOptions.SessionExpiryInterval > 0)
         {
@@ -74,7 +84,7 @@ public sealed class MqttClientService
 
         if (!string.IsNullOrEmpty(item.SessionOptions.AuthenticationMethod))
         {
-            clientOptionsBuilder.WithAuthentication(item.SessionOptions.AuthenticationMethod, Convert.FromBase64String(item.SessionOptions.AuthenticationData));
+            clientOptionsBuilder.WithEnhancedAuthentication(item.SessionOptions.AuthenticationMethod, Convert.FromBase64String(item.SessionOptions.AuthenticationData));
         }
 
         if (item.ServerOptions.SelectedTransport.Value == Transport.TCP)
@@ -83,22 +93,44 @@ public sealed class MqttClientService
         }
         else
         {
-            clientOptionsBuilder.WithWebSocketServer(item.ServerOptions.Host);
+            clientOptionsBuilder.WithWebSocketServer(o =>
+            {
+                o.WithUri(item.ServerOptions.Host);
+            });
         }
 
         if (item.ServerOptions.SelectedTlsVersion.Value != SslProtocols.None)
         {
-            clientOptionsBuilder.WithTls(o =>
+            clientOptionsBuilder.WithTlsOptions(o =>
             {
-                o.SslProtocol = item.ServerOptions.SelectedTlsVersion.Value;
-                o.IgnoreCertificateChainErrors = item.ServerOptions.IgnoreCertificateErrors;
-                o.IgnoreCertificateRevocationErrors = item.ServerOptions.IgnoreCertificateErrors;
-                o.CertificateValidationHandler = item.ServerOptions.IgnoreCertificateErrors ? _ => true : null;
+                o.WithSslProtocols(item.ServerOptions.SelectedTlsVersion.Value);
+                o.WithIgnoreCertificateChainErrors(item.ServerOptions.IgnoreCertificateErrors);
+                o.WithIgnoreCertificateRevocationErrors(item.ServerOptions.IgnoreCertificateErrors);
+                o.WithCertificateValidationHandler(item.ServerOptions.IgnoreCertificateErrors ? _ => true : null);
+
+                if (!string.IsNullOrEmpty(item.SessionOptions.CertificatePath))
+                {
+                    X509Certificate2Collection certificates = new();
+
+                    if (string.IsNullOrEmpty(item.SessionOptions.CertificatePassword))
+                    {
+                        certificates.Add(X509CertificateLoader.LoadCertificateFromFile(item.SessionOptions.CertificatePath));
+                    }
+                    else
+                    {
+                        certificates.Add(X509CertificateLoader.LoadPkcs12FromFile(item.SessionOptions.CertificatePath, item.SessionOptions.CertificatePassword));
+                    }
+
+                    o.WithClientCertificates(certificates);
+                    o.WithApplicationProtocols([new SslApplicationProtocol("mqtt")]);
+                }
             });
         }
 
         _mqttClient.ApplicationMessageReceivedAsync += OnApplicationMessageReceived;
-        _mqttClient.InspectPackage += OnInspectPackage;
+
+        // TODO: Attach and detach packet inspection on demand (internal overhead in MQTTnet library)!
+        _mqttClient.InspectPacketAsync += OnInspectPacket;
         _mqttClient.DisconnectedAsync += OnDisconnected;
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(item.ServerOptions.CommunicationTimeout));
@@ -193,7 +225,7 @@ public sealed class MqttClientService
         return _mqttClient!.PublishAsync(applicationMessageBuilder.Build());
     }
 
-    public void RegisterMessageInspectorHandler(Action<InspectMqttPacketEventArgs> handler)
+    public void RegisterMessageInspectorHandler(Func<InspectMqttPacketEventArgs, Task> handler)
     {
         if (handler == null)
         {
@@ -246,9 +278,19 @@ public sealed class MqttClientService
         return await _mqttClient.UnsubscribeAsync(subscriptionItem.Topic).ConfigureAwait(false);
     }
 
-    Task OnApplicationMessageReceived(MqttApplicationMessageReceivedEventArgs eventArgs)
+    async Task OnApplicationMessageReceived(MqttApplicationMessageReceivedEventArgs eventArgs)
     {
-        return _applicationMessageReceivedEvent.InvokeAsync(eventArgs);
+        Interlocked.Increment(ref _receivedMessagesCount);
+
+        // We have to insert a small delay here because this is an UI application. If we
+        // have no delay the application will freeze as soon as there is much traffic.
+        await Task.Delay(50);
+        await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+            },
+            DispatcherPriority.Render);
+
+        await _applicationMessageReceivedEvent.InvokeAsync(eventArgs);
     }
 
     Task OnDisconnected(MqttClientDisconnectedEventArgs eventArgs)
@@ -261,11 +303,14 @@ public sealed class MqttClientService
         return Task.CompletedTask;
     }
 
-    Task OnInspectPackage(InspectMqttPacketEventArgs eventArgs)
+    Task OnInspectPacket(InspectMqttPacketEventArgs eventArgs)
     {
         foreach (var messageInspector in _messageInspectors)
         {
-            messageInspector.Invoke(eventArgs);
+            messageInspector.Invoke(eventArgs).GetAwaiter().GetResult();
+
+            // We have to insert a sleep here to make sure that the UI remains responsive.
+            Thread.Sleep(25);
         }
 
         return Task.CompletedTask;
